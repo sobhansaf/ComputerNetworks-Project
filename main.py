@@ -41,24 +41,28 @@ def ether(data):
     # 1. src and dst mac
     # a list of length 12 (6 for src and 6 for dst). each item is a 1B of mac (should be 4 bits to display)
     # eg -> mac 1a:2b:... => [160, 352, ...]
+    assert (isiterable(data) and len(data) >= 4)
+
     dst_src_mac = unpack("!6B 6B", data[:12])
-    print(dst_src_mac)
-    input('Here')
+
     assert(isiterable(dst_src_mac) and len(dst_src_mac) == 12)
 
     dst_mac = retrive_mac(dst_src_mac[:6])
     src_mac = retrive_mac(dst_src_mac[6:])
 
-    # TODO : 2. protocol number
+    # 2. protocol number
+    proto_num = unpack('!H', data[12:14])[0]
 
-    return (dst_mac, src_mac, data[14:])
+    return (dst_mac, src_mac, proto_num, data[14:])
 
 
 
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+
 raw_data, addr = conn.recvfrom(65535)
 
-dst, src, data = ether(raw_data)
-print(src, dst, sep="\n")
+
+dst, src, proto_num, data = ether(raw_data)
+print(src, dst, proto_num, sep="\n")
 
