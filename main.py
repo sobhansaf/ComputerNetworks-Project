@@ -14,41 +14,38 @@ def isiterable(item):
 
 
 
-def retrive_mac(arr):
-    # takes an array of size 6 each 1B values. breaking each one into two 4 bits
-    # e.g: 160 (0001 1010) -> 1a
-    assert(isiterable(arr) and len(arr) == 6)
+def retrive_mac(mac):
+    # takes a the mac address in bytes format. returns a string which represents the mac address.
+    # e.g: \x02\x10... -> 02:10:...
+    assert(type(mac) is bytes)
     
-    # making a dictionary of numbers to their hex -> {1:'1', ... , 15:'f'}
+    # making a dict to use to map numbers in dec format to alphabetic or numeric in hex
     d = {i: f'{i}' for i in range(10)}
     for i in range(10, 16):
         d[i] = chr(ord('a') + i - 10)
-    
-    res = str()
-    for item in arr:
-        if item > 255:
-            raise ValueError('Items of arr should be at most 1 Byte')
-        res += f'{d[item // 16]}{d[item % 16]}:'
-    
-    # res has an additional ":" at end
-    return res[:-1]
-    
+
+    # making a list of converted hex to decimal values in string format. e.g \x02\x10... -> ["02", "10", ...]
+    res = list()
+    for item in mac:
+        # item is 1 byte in size. break it into two decimal of 4 bits. e.g \x10 -> 160 -> "10"
+        if item // 16 > 16:
+            raise ValueError('There is a problem with input')
+        res.append(str(d[item // 16]) + str(d[item % 16]))
+    return ":".join(res)
 
 
 def ether(data):
     # gets a packet as input and returns src MAC, dst MAC, protocl number
     
-    # 1. src and dst mac
-    # a list of length 12 (6 for src and 6 for dst). each item is a 1B of mac (should be 4 bits to display)
-    # eg -> mac 1a:2b:... => [160, 352, ...]
     assert (isiterable(data) and len(data) >= 4)
 
-    dst_src_mac = unpack("!6B 6B", data[:12])
+    # 1. src and dst mac
+    # first 12 bytes of packet is src and dst add.
+    dst_src_mac = unpack("!6s 6s", data[:12]) # tuple of size 2. they are dst and src mac respectively in bytes format.
 
-    assert(isiterable(dst_src_mac) and len(dst_src_mac) == 12)
-
-    dst_mac = retrive_mac(dst_src_mac[:6])
-    src_mac = retrive_mac(dst_src_mac[6:])
+    # making src and dst mac in human readable format. eg:\x10\x02 -> 10:02
+    dst_mac = retrive_mac(dst_src_mac[0])
+    src_mac = retrive_mac(dst_src_mac[1])
 
     # 2. protocol number
     proto_num = unpack('!H', data[12:14])[0]
@@ -64,5 +61,6 @@ raw_data, addr = conn.recvfrom(65535)
 
 
 dst, src, proto_num, data = ether(raw_data)
+
 print(src, dst, proto_num, sep="\n")
 
