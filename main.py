@@ -53,6 +53,37 @@ def ether(data):
     return ({"Destination MAC": dst_mac, "Source MAc": src_mac, "Ethertype": proto_num}, data[14:])
 
 
+def ip(data):
+    # teakes a segment and returns its header values and seperates its ip headers.
+    ip_headers = list(unpack('!BBHHHBBHBBBBBBBB', data[:20])) # returns a tuple of different parts of ip header
+
+    for i in range(8, len(ip_headers)):  # in order to join IPs with '.' they need to be in string format
+        ip_headers[i] = str(ip_headers[i])
+
+    ip_fields = {
+        'Version': ip_headers[0] // 16, # first byte consists of version and header length each 4 bits
+        'Header length': (ip_headers[0] % 16) * 4,
+        'TOS': ip_headers[1],
+        'Total length': ip_headers[2],
+        'Identifier': ip_headers[3],
+        'Don\'t fragment': ip_headers[4] // (2 ** 14), # first bit of flags is always 0(reserved). second bit.
+        'More fragments': (ip_headers[4] // 13) & 1, # third bit of flags.
+        'Fragment offset': ip_headers[4] % (2 ** 13), # last 13 bits of flags.
+        'TTL': ip_headers[5],
+        'Protocol number': ip_headers[6],
+        'Header checksum': ip_headers[7],
+        'Source IP address': '.'.join(ip_headers[8:12]), # merging bytes of src and dst ip
+        'Destination IP address': '.'.join(ip_headers[12:])
+    }
+
+    header_len = ip_fields['Header length']
+    if (header_len > 20):  # IP header has options
+        ip_fields['Options'] = unpack(f'!{header_len - 20}s', data[20: header_len])
+    
+    return(ip_fields, data[header_len:])
+
+    
+
 
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
@@ -62,5 +93,8 @@ raw_data, addr = conn.recvfrom(65535)
 
 ether_headers, data = ether(raw_data)
 
-print(ether_headers, sep="\n")
+ip_head, data = ip(data)
+
+
+print(ip_head, sep="\n")
 
