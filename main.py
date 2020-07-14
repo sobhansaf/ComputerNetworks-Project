@@ -50,7 +50,7 @@ def ether(data):
     # 2. protocol number
     proto_num = unpack('!H', data[12:14])[0]
 
-    return (dst_mac, src_mac, proto_num, data[14:])
+    return ({"Destination MAC": dst_mac, "Source MAc": src_mac, "Ethertype": proto_num}, data[14:])
 
 
 
@@ -60,7 +60,7 @@ conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 raw_data, addr = conn.recvfrom(65535)
 
 
-dst, src, proto_num, data = ether(raw_data)
+ether_headers, data = ether(raw_data)
 
-print(src, dst, proto_num, sep="\n")
+print(ether_headers, sep="\n")
 
