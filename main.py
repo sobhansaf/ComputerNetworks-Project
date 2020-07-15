@@ -138,6 +138,18 @@ def arp(data):
     return arp_fields
 
 
+def udp(data):
+    # decapsulation of UDP packets
+    src_port, dst_port, length, checksum = unpack('!4H',data[:8])
+    return ({
+        'Source port number': src_port,
+        'Destination port number': dst_port,
+        'Length': length,
+        'CheckSum': checksum
+    }, data[8:])
+
+
+
 
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
@@ -147,8 +159,11 @@ while True:
 
     ether_headers, data = ether(raw_data)
 
-    if ether_headers['Ethertype'] == 2054: # arp
-        arp_head = arp(data)
-        print(arp_head)
+    if ether_headers['Ethertype'] == 2048: # ip
+        ip_headers, data = ip(data)
+
+        if ip_headers['Protocol number'] == 17:
+            udp_headers, data = udp(data)
+            print(udp_headers)
 
 
