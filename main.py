@@ -78,23 +78,50 @@ def ip(data):
 
     header_len = ip_fields['Header length']
     if (header_len > 20):  # IP header has options
-        ip_fields['Options'] = unpack(f'!{header_len - 20}s', data[20: header_len])
-    
+        try:
+            ip_fields['Options'] = unpack(f'!{header_len - 20}s', data[20: header_len])
+        except:
+            print(header_len)
+            print(len(data))
+            print(len(data[20:header_len]))
+            input()
+
     return(ip_fields, data[header_len:])
 
+
+def icmp(data):
+    # decapsulates ICMP packets
+    type_, code, ch_sum = unpack('!BBH', data[:4])
+    icmp_fileds = {
+        'Type': type_,
+        'Code': code,
+        'Checksum': ch_sum,
+        'Rest of header': repr(data[4:]) 
+    }
     
+    return icmp_fileds
 
 
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 
-raw_data, addr = conn.recvfrom(65535)
+while True:
+    raw_data, addr = conn.recvfrom(65535)
+
+    ether_headers, data = ether(raw_data)
+
+    if ether_headers['Ethertype'] == 2048: # ip
+        ip_head, data = ip(data)
 
 
-ether_headers, data = ether(raw_data)
+        if (ip_head['Protocol number'] == 1): # icmp
+            
+            print('-----ICMP----')
+            print(icmp(data))
+            print(ip_head['Source IP address'])
 
-ip_head, data = ip(data)
 
 
-print(ip_head, sep="\n")
+
+
 
