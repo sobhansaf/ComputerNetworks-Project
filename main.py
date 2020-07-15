@@ -148,6 +148,38 @@ def udp(data):
         'CheckSum': checksum
     }, data[8:])
 
+def tcp(data):
+    # decapsulates TCP packets
+    src_port, dst_port, seq_num, ack_num, header_len, flags, win_size, checksum, urg_ptr = unpack('!HHIIBBHHH', data[:20])
+    current = 20  # a pointer to byte number we are reading
+    
+    # header length is from bit number 97 to 100 in tcp header but in the line above we got 1 byte in header length (97-104)
+    # bit number 104 is nounce flag and bits 101, 102, 103 are reserved and are set to 0
+    nounce = header_len % 2
+    header_len = (header_len & (15 * 16)) // 16   # taking off those 4 bits
+    header_len *= 4  # header length in tcp should be multiplied by 4
+
+    tcp_fields = {
+        'Source port number': src_port,
+        'Destination port number': dst_port,
+        'Sequence number': seq_num,
+        'Acknowledgement number': ack_num,
+        'Header length': header_len,
+        'Nounce': nounce
+    }
+
+    flag_names = ('CWR', 'ECE', 'URG', 'ACK', 'PSH', 'RST', 'SYN', 'FIN')
+    for item in reversed(flag_names):  # because each time we are getting the last bit names should go from last to first
+        tcp_fields[item] = flags % 2
+        flags = flags // 2
+
+    tcp_fields.update((('Window size', win_size), ('Checksum', checksum), ('Urgent pointer', urg_ptr)))
+
+    if header_len > 20:  # tcp packet has some optoins
+        tcp_fields['Options'] = repr(data[current: header_len])
+        current = header_len
+    
+    return (tcp_fields, data[current:])
 
 
 
@@ -162,8 +194,8 @@ while True:
     if ether_headers['Ethertype'] == 2048: # ip
         ip_headers, data = ip(data)
 
-        if ip_headers['Protocol number'] == 17:
-            udp_headers, data = udp(data)
-            print(udp_headers)
+        if ip_headers['Protocol number'] == 6: # tcp
+            tcp_headers, data = tcp(data)
+            print(tcp_headers)
 
 
