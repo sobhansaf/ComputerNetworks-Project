@@ -90,16 +90,53 @@ def ip(data):
 
 
 def icmp(data):
-    # decapsulates ICMP packets
+    # decapsulates ICMP packet
     type_, code, ch_sum = unpack('!BBH', data[:4])
-    icmp_fileds = {
+    icmp_fields = {
         'Type': type_,
         'Code': code,
         'Checksum': ch_sum,
         'Rest of header': repr(data[4:]) 
     }
     
-    return icmp_fileds
+    return icmp_fields
+
+
+def arp(data):
+    # decapsulates ARP packets.
+    hw_type, proto_type, hw_add_len, proto_add_len, opcode = unpack('!HHBBH', data[:8])
+    current = 8  # a pointer to byte number of data we are cuurently reading
+    
+    src_hw = unpack(f'!{hw_add_len}s', data[current : current + hw_add_len])[0]  # returns its src hw address in bytes format
+    current += hw_add_len
+    
+    src_proto_add = unpack(f'!{proto_add_len}B', data[current : current + proto_add_len]) # returns a tupel of ip. e.g(192, 168, ...)
+    current += proto_add_len
+
+
+    dst_hw = unpack(f'!{hw_add_len}s', data[current : current + hw_add_len])[0]
+    current += hw_add_len
+    
+    dst_proto_add = unpack(f'!{proto_add_len}B', data[current : current + proto_add_len])
+    current += proto_add_len
+
+    arp_fields = {
+        'Hardware type': hw_type,
+        'Protocol type': proto_type,
+        'Hardware address length': hw_add_len,
+        'Protocol address length': proto_add_len,
+        'Opcode': opcode,
+        'Source hardware address': retrive_mac(src_hw),
+        'Source protocol address': '.'.join(map(str, src_proto_add)),
+        'Destination hardware address': retrive_mac(dst_hw),
+        'Destination protocol address': '.'.join(map(str, dst_proto_add))
+    }
+
+    if current < len(data):
+        arp_fields['Data'] = repr(data[current])
+
+    return arp_fields
+
 
 
 # a socket for packets recieved
@@ -110,18 +147,8 @@ while True:
 
     ether_headers, data = ether(raw_data)
 
-    if ether_headers['Ethertype'] == 2048: # ip
-        ip_head, data = ip(data)
-
-
-        if (ip_head['Protocol number'] == 1): # icmp
-            
-            print('-----ICMP----')
-            print(icmp(data))
-            print(ip_head['Source IP address'])
-
-
-
-
+    if ether_headers['Ethertype'] == 2054: # arp
+        arp_head = arp(data)
+        print(arp_head)
 
 
