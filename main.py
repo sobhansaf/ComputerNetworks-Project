@@ -182,6 +182,57 @@ def tcp(data):
     return (tcp_fields, data[current:])
 
 
+def dns(data):
+    # decapsulates dns packets
+    
+    def get_dns_name(data, start):
+        # gets dns packet(bytes) and the number of the first bit of name and returns the name
+        tmp = data[start]
+        direct = True  # whether it is a pointer to name or not
+        
+        if tmp // 64 == 3:  # a pointer to a name
+            start = 256 * (data[start] % 64) + data[start + 1]
+            direct = False
+        
+        current = start
+        res = str()
+        while data[current] != 0:
+            res += chr(data[current])
+            current += 1
+        
+        return (res, current) if direct else (res, current + 1)
+    
+    
+    id_, flags, num_of_quest, num_of_ans, num_of_auth, num_of_add = unpack('!6H', data[:12])
+    current = 12  # a ptr to current number of byte
+    
+    queries = list()
+    answers = list()
+
+    for i in range(num_of_quest):  # information of each query
+        name, current = get_dns_name(data, current)
+        current += 1
+        queries.append({
+            'Name': name,
+            'Type': unpack('!H', data[current : current + 2])[0],
+            'Class': unpack('!H', data[current + 2 : current + 4])[0]
+        })
+        current += 4
+
+    for i in range(num_of_ans):  # answers
+        name, current = get_dns_name(data, current)
+        current += 1
+        answers.append({
+            'Name': name,
+            'Type': unpack('!H', data[current : current + 2])[0],
+            'Class': unpack('!H', data[current + 2 : current + 4])[0],
+            'TTL': unpack('!I', data[current + 4 : current + 8])[0],
+            'Data Length': unpack('!H', data[current + 8: current + 10]),
+        })
+        current += 10
+
+        
+
 
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
