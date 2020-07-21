@@ -203,6 +203,33 @@ def dns(data):
             current += 1
         
         return (res, current) if direct else (res, start + 1)
+
+    def extract_record_dns(data, current, types):  
+        # is used to extract answer and authority and additional records. return new and current position in bytes obj
+        name, current = get_dns_name(data, current)
+        current += 1
+        new = {
+            'Name': name,
+            'Type': unpack('!H', data[current : current + 2])[0],
+            'Class': unpack('!H', data[current + 2 : current + 4])[0],
+            'TTL': unpack('!I', data[current + 4 : current + 8])[0],
+            'Data length': unpack('!H', data[current + 8: current + 10])[0],
+        }
+        current += 10
+
+        new['Type'] = types.get(new['Type'], new['Type']) # specify some common types
+    
+        # example for below code: CNAME:dns.google.com
+        new[new['Type']] = unpack(f'!{new["Data length"]}s',
+                                                data[current : current + new['Data length']])[0]
+
+        current += new['Data length']
+
+        if new['Type'] == 'A':
+            new['A'] = '.'.join(list(map(lambda x: str(x), new['A'])))  # human readable IPv4
+
+        return new, current
+
     
     
     id_, flags, num_of_quest, num_of_ans, num_of_auth, num_of_add = unpack('!6H', data[:12])
@@ -210,6 +237,8 @@ def dns(data):
     
     queries = list()
     answers = list()
+    authorities = list()
+    additionals = list()
 
     types = {1: 'A', 2: 'NS', 5: 'CNAME', 15: 'MX'}
 
@@ -226,31 +255,96 @@ def dns(data):
 
     
     for i in range(num_of_ans):  # answers
-        name, current = get_dns_name(data, current)
-        current += 1
-        new_answer = {
-            'Name': name,
-            'Type': unpack('!H', data[current : current + 2])[0],
-            'Class': unpack('!H', data[current + 2 : current + 4])[0],
-            'TTL': unpack('!I', data[current + 4 : current + 8])[0],
-            'Data length': unpack('!H', data[current + 8: current + 10])[0],
-        }
-        current += 10
+        # name, current = get_dns_name(data, current)
+        # current += 1
+        # new_answer = {
+        #     'Name': name,
+        #     'Type': unpack('!H', data[current : current + 2])[0],
+        #     'Class': unpack('!H', data[current + 2 : current + 4])[0],
+        #     'TTL': unpack('!I', data[current + 4 : current + 8])[0],
+        #     'Data length': unpack('!H', data[current + 8: current + 10])[0],
+        # }
+        # current += 10
 
-        new_answer['Type'] = types.get(new_answer['Type'], new_answer['Type']) # specify some common types
+        # new_answer['Type'] = types.get(new_answer['Type'], new_answer['Type']) # specify some common types
     
-        # example for below code: CNAME:dns.google.com
-        new_answer[new_answer['Type']] = unpack(f'!{new_answer["Data length"]}s',
-                                                data[current : current + new_answer['Data length']])[0]
+        # # example for below code: CNAME:dns.google.com
+        # new_answer[new_answer['Type']] = unpack(f'!{new_answer["Data length"]}s',
+        #                                         data[current : current + new_answer['Data length']])[0]
 
-        current += new_answer['Data length']
+        # current += new_answer['Data length']
 
-        if new_answer['Type'] == 'A':
-            new_answer['A'] = '.'.join(list(map(lambda x: str(x), new_answer['A'])))  # human readable IPv4
+        # if new_answer['Type'] == 'A':
+        #     new_answer['A'] = '.'.join(list(map(lambda x: str(x), new_answer['A'])))  # human readable IPv4
+
+        new_answer, current = extract_record_dns(data, current, types)
         
         answers.append(new_answer)
+
+
+    for i in range(num_of_auth):    # authority
+        # name, current = get_dns_name(data, current)
+        # current += 1
+        # new_auth = {
+        #     'Name': name,
+        #     'Type': unpack('!H', data[current : current + 2])[0],
+        #     'Class': unpack('!H', data[current + 2 : current + 4])[0],
+        #     'TTL': unpack('!I', data[current + 4 : current + 8])[0],
+        #     'Data length': unpack('!H', data[current + 8: current + 10])[0],
+        # }
+        # current += 10
+
+        # new_auth['Type'] = types.get(new_auth['Type'], new_auth['Type']) # specify some common types
     
-    return answers
+        # # example for below code: CNAME:dns.google.com
+        # new_auth[new_auth['Type']] = unpack(f'!{new_auth["Data length"]}s',
+        #                                         data[current : current + new_auth['Data length']])[0]
+
+        # current += new_auth['Data length']
+
+        # if new_auth['Type'] == 'A':
+        #     new_auth['A'] = '.'.join(list(map(lambda x: str(x), new_auth['A'])))  # human readable IPv4
+
+        new_authority, current = extract_record_dns(data, current, types)
+        
+        authorities.append(new_authority)
+
+
+    for i in range(num_of_add):
+        new_additional, current = extract_record_dns(data, current, types)
+        additionals.append(new_additional)
+    
+    #id_, flags, num_of_quest, num_of_ans, num_of_auth, num_of_add
+
+    dns_info = {
+        'ID': id_,
+        'Response': flags // (2 ** 15),   # first bit of flags
+        'Opcode': (flags // (2 ** 11)) & 15,  # bit number 2 to 5
+        'Trunced': (flags // (2 ** 9)) & 1,  # bit number 7
+        'Recursive': (flags // (2 ** 8)) & 1,  # bit number 8
+        'Non-authenticated data': (flags // (2 ** 4)) & 1, # bit number 12
+    }
+
+    if dns_info['Response']:  # adding flags which are related to response dns
+        dns_info.update({
+            'Authoritive DNS answer': (flags // (2 ** 10)) & 1,   # bit number 6
+            'Recursion available': (flags // (2 ** 7)) & 1,   # bit number 9
+            'Ans/Auth was authenticated': (flags // (2 ** 5)) &1,  # bit number 11
+            'Status code': flags & 15   # bit number 13-16
+        })
+    
+    dns_info.update({
+        'Questions': num_of_quest,
+        'Answer RR': num_of_ans,
+        'Authority RR': num_of_auth,
+        'Additional RR': num_of_add,
+        'Queries': queries,
+        'Answers': answers,
+        'Authorities': authorities,
+        'Additionals': additionals
+    })
+
+    return dns_info
 
 
 
