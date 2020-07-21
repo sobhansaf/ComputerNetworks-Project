@@ -347,6 +347,30 @@ def dns(data):
     return dns_info
 
 
+def http(data):
+    # decapsulating http request and response
+    http = data.split(b'\r\n\r\n')
+    if len(http) == 2:  # There is both header and message
+        header, message = http
+        header = list(map(lambda x: x.decode(), header.split(b'\r\n')))
+        # header = header.split(b'\r\n')
+
+    elif len(http) == 1:  # There is no data or juts headers
+        header = http[0]
+        message = ''
+        try:
+            header = list(map(lambda x: x.decode(), header.split(b'\r\n')))
+        except UnicodeDecodeError:  # html code was broken into some parts. it's the continue of one of them
+            message = http[0]
+            header = ''
+        # header = header.split(b'\r\n')
+    else:
+        return None
+
+    return {'Header': header, 'Message': message}
+
+
+
 
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
@@ -359,13 +383,13 @@ while True:
     if ether_headers['Ethertype'] == 2048: # ip
         ip_headers, data = ip(data)
 
-        if ip_headers['Protocol number'] == 17: # tcp
-            udp_headers, data = udp(data)
+        if ip_headers['Protocol number'] == 6: # tcp
+            tcp_headers, data = tcp(data)
 
 
-            if udp_headers['Source port number'] == 53 or udp_headers['Destination port number'] == 53: # dns
-                dns_headers = dns(data)
-                print(dns_headers)
+            if tcp_headers['Source port number'] == 80 or tcp_headers['Destination port number'] == 80: # http
+                data = http(data)
+                print(data)
             
 
 
