@@ -81,9 +81,10 @@ def ip(data):
         try:
             ip_fields['Options'] = unpack(f'!{header_len - 20}s', data[20: header_len])
         except:
-            print(header_len)
-            print(len(data))
-            print(len(data[20:header_len]))
+            # print('HERE')
+            # print(header_len)
+            # print(len(data))
+            # print(len(data[20:header_len]))
             input()
 
     return(ip_fields, data[header_len:])
@@ -190,17 +191,18 @@ def dns(data):
         tmp = data[start]
         direct = True  # whether it is a pointer to name or not
         
+        current = start
+
         if tmp // 64 == 3:  # a pointer to a name
-            start = 256 * (data[start] % 64) + data[start + 1]
+            current = 256 * (data[start] % 64) + data[start + 1]
             direct = False
         
-        current = start
         res = str()
         while data[current] != 0:
             res += chr(data[current])
             current += 1
         
-        return (res, current) if direct else (res, current + 1)
+        return (res, current) if direct else (res, start + 1)
     
     
     id_, flags, num_of_quest, num_of_ans, num_of_auth, num_of_add = unpack('!6H', data[:12])
@@ -208,6 +210,8 @@ def dns(data):
     
     queries = list()
     answers = list()
+
+    types = {1: 'A', 2: 'NS', 5: 'CNAME', 15: 'MX'}
 
     for i in range(num_of_quest):  # information of each query
         name, current = get_dns_name(data, current)
@@ -218,20 +222,36 @@ def dns(data):
             'Class': unpack('!H', data[current + 2 : current + 4])[0]
         })
         current += 4
+        queries[-1]['Type'] = types.get(queries[-1]['Type'], queries[-1]['Type'])
 
+    
     for i in range(num_of_ans):  # answers
         name, current = get_dns_name(data, current)
         current += 1
-        answers.append({
+        new_answer = {
             'Name': name,
             'Type': unpack('!H', data[current : current + 2])[0],
             'Class': unpack('!H', data[current + 2 : current + 4])[0],
             'TTL': unpack('!I', data[current + 4 : current + 8])[0],
-            'Data Length': unpack('!H', data[current + 8: current + 10]),
-        })
+            'Data length': unpack('!H', data[current + 8: current + 10])[0],
+        }
         current += 10
 
+        new_answer['Type'] = types.get(new_answer['Type'], new_answer['Type']) # specify some common types
+    
+        # example for below code: CNAME:dns.google.com
+        new_answer[new_answer['Type']] = unpack(f'!{new_answer["Data length"]}s',
+                                                data[current : current + new_answer['Data length']])[0]
+
+        current += new_answer['Data length']
+
+        if new_answer['Type'] == 'A':
+            new_answer['A'] = '.'.join(list(map(lambda x: str(x), new_answer['A'])))  # human readable IPv4
         
+        answers.append(new_answer)
+    
+    return answers
+
 
 
 # a socket for packets recieved
@@ -245,8 +265,13 @@ while True:
     if ether_headers['Ethertype'] == 2048: # ip
         ip_headers, data = ip(data)
 
-        if ip_headers['Protocol number'] == 6: # tcp
-            tcp_headers, data = tcp(data)
-            print(tcp_headers)
+        if ip_headers['Protocol number'] == 17: # tcp
+            udp_headers, data = udp(data)
+
+
+            if udp_headers['Source port number'] == 53 or udp_headers['Destination port number'] == 53: # dns
+                dns_headers = dns(data)
+                print(dns_headers)
+            
 
 
