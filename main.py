@@ -1,8 +1,6 @@
 import socket
 from struct import *
 
-
-
 def isiterable(item):
     # checks if the item is iterbale
     try:
@@ -11,8 +9,6 @@ def isiterable(item):
         return False
     else:
         return True
-
-
 
 def retrive_mac(mac):
     # takes a the mac address in bytes format. returns a string which represents the mac address.
@@ -123,7 +119,7 @@ def arp(data):
 
     arp_fields = {
         'Hardware type': hw_type,
-        'Protocol number': proto_type,
+        'Protocol type': proto_type,
         'Hardware address length': hw_add_len,
         'Protocol address length': proto_add_len,
         'Opcode': opcode,
@@ -255,58 +251,12 @@ def dns(data):
 
     
     for i in range(num_of_ans):  # answers
-        # name, current = get_dns_name(data, current)
-        # current += 1
-        # new_answer = {
-        #     'Name': name,
-        #     'Type': unpack('!H', data[current : current + 2])[0],
-        #     'Class': unpack('!H', data[current + 2 : current + 4])[0],
-        #     'TTL': unpack('!I', data[current + 4 : current + 8])[0],
-        #     'Data length': unpack('!H', data[current + 8: current + 10])[0],
-        # }
-        # current += 10
-
-        # new_answer['Type'] = types.get(new_answer['Type'], new_answer['Type']) # specify some common types
-    
-        # # example for below code: CNAME:dns.google.com
-        # new_answer[new_answer['Type']] = unpack(f'!{new_answer["Data length"]}s',
-        #                                         data[current : current + new_answer['Data length']])[0]
-
-        # current += new_answer['Data length']
-
-        # if new_answer['Type'] == 'A':
-        #     new_answer['A'] = '.'.join(list(map(lambda x: str(x), new_answer['A'])))  # human readable IPv4
-
         new_answer, current = extract_record_dns(data, current, types)
-        
         answers.append(new_answer)
 
 
     for i in range(num_of_auth):    # authority
-        # name, current = get_dns_name(data, current)
-        # current += 1
-        # new_auth = {
-        #     'Name': name,
-        #     'Type': unpack('!H', data[current : current + 2])[0],
-        #     'Class': unpack('!H', data[current + 2 : current + 4])[0],
-        #     'TTL': unpack('!I', data[current + 4 : current + 8])[0],
-        #     'Data length': unpack('!H', data[current + 8: current + 10])[0],
-        # }
-        # current += 10
-
-        # new_auth['Type'] = types.get(new_auth['Type'], new_auth['Type']) # specify some common types
-    
-        # # example for below code: CNAME:dns.google.com
-        # new_auth[new_auth['Type']] = unpack(f'!{new_auth["Data length"]}s',
-        #                                         data[current : current + new_auth['Data length']])[0]
-
-        # current += new_auth['Data length']
-
-        # if new_auth['Type'] == 'A':
-        #     new_auth['A'] = '.'.join(list(map(lambda x: str(x), new_auth['A'])))  # human readable IPv4
-
         new_authority, current = extract_record_dns(data, current, types)
-        
         authorities.append(new_authority)
 
 
@@ -381,8 +331,6 @@ def make_protocol_str(headers, protocol_name):
     
 
 
-
-
 # a socket for packets recieved
 conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 
@@ -406,18 +354,7 @@ while True:
     string += make_protocol_str(ether_headers, 'Ethernet')
 
     layer_two_headers, data = layer_two_porotocols[ether_headers['Ethertype']](data)
-
-
-    try:
-        if layer_two_headers['Protocol number'] not in layer_three_protocols:
-            continue
-    except:
-        print('+' * 50)
-        print(ether_headers)
-        print(layer_two_headers)
-        break
-
-
+    
     string += make_protocol_str(layer_two_headers, layer_two_porotocols[ether_headers['Ethertype']].__name__.upper())
 
     if data is None: # arp
@@ -425,6 +362,13 @@ while True:
         print(string)
         print('-' * 50)
         continue
+
+    if layer_two_headers['Protocol number'] not in layer_three_protocols \
+        or layer_two_headers['Source IP address'].startswith('127'):
+        # first condition -> unsupported protocol
+        # second condition -> loopback
+        continue
+
 
     layer_three_headers, data = layer_three_protocols[layer_two_headers['Protocol number']](data)
 
@@ -438,11 +382,9 @@ while True:
         layer_four_headers = layer_four_protocols[layer_three_headers['Source port number']](data)
         string += make_protocol_str(layer_four_headers, layer_four_protocols[layer_three_headers['Source port number']].__name__.upper())
 
-    
     elif layer_three_headers['Destination port number'] in layer_four_protocols:
         layer_four_headers = layer_four_protocols[layer_three_headers['Destination port number']](data)
         string += make_protocol_str(layer_four_headers, layer_four_protocols[layer_three_headers['Destination port number']].__name__.upper())
-
     
     else:
         continue
