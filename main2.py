@@ -7,14 +7,28 @@ import re
 # ports -> <a>-<b> for range of ports and <a>,<b> for single ports
 # delay -> time to wait for each response to a packet
 
+
 def connect_scan():
     pass
 
 def ack_scan():
     pass
 
-def syn_scan():
-    pass
+def syn_scan(dest, ports, delay, retry=1):
+    print('Start scanning target with SYN scan'.center(50, '='))
+
+    packets = sr(IP(dst=dest)/TCP(dport=ports, flags='S'), retry=retry, timeout=delay, verbose=0)[0]
+    # variable packets is a list of tuples of request and responses
+    # it only contains requests which have responses. first element of each tuple in this list is request
+    # and second one is reponse to first element request 
+
+    for packet in packets:
+        if packet[1].getlayer(TCP).flags == 0x12:   # SYN and ACK bit
+            print(f'Port number {packet[1].getlayer(TCP).sport} sent an STN/ACK packet!')
+
+    print('=' * 50)
+    print()
+
 
 def fin_scan():
     pass
@@ -31,6 +45,8 @@ dst = '127.0.0.1'
 scan = connect_scan
 ports = (1, 100)
 delay = 1
+
+print('*' * 50)
 
 
 for option in options:  # expected option format: "<sth>=<sth>"
@@ -72,8 +88,8 @@ for option in options:  # expected option format: "<sth>=<sth>"
         else:
             print(f'Wrong ports input: "{option[1]}"')
     elif option[0] == 'delay':
-        if re.match(r'^\d+$', option[1]):
-            delay = int(option[1])
+        if re.match(r'^\d+\.?\d*$', option[1]):
+            delay = float(option[1])
             print(f'---Delay: {delay}---')
         else:
             print(f'Wrong delay input: {option[1]}')
@@ -81,6 +97,9 @@ for option in options:  # expected option format: "<sth>=<sth>"
         dst = option[1]
         print(f'---Target: {dst}---')
 
+print('*' * 50)
+
+scan(dst, ports, delay)
 
 
 
