@@ -8,23 +8,47 @@ import re
 # delay -> time to wait for each response to a packet
 
 
+def send_tcp_packet(dest, ports, flags, delay, retry):
+    # gets dst address and ports(tuple for range or list for single ports or an int) and flags is a string like "SA" for syn/ack
+    # sends tcp packet with specified arguments and returns every packet that receieved an answer.
+    # it returns a list of tuples. each tuple has two elements, first is the request we sent and second is its reponse
+
+    return sr(IP(dst=dest)/TCP(dport=ports, flags=flags), retry=retry, timeout=delay, verbose=0)[0]
+
+
 def connect_scan():
     pass
 
-def ack_scan():
-    pass
+def ack_scan(dest, ports, delay, retry=1):
+    print('Start scanning target with ACK scan'.center(50, '='))
 
-def syn_scan(dest, ports, delay, retry=1):
-    print('Start scanning target with SYN scan'.center(50, '='))
-
-    packets = sr(IP(dst=dest)/TCP(dport=ports, flags='S'), retry=retry, timeout=delay, verbose=0)[0]
+    packets = send_tcp_packet(dest, ports, 'A', delay, retry)
     # variable packets is a list of tuples of request and responses
     # it only contains requests which have responses. first element of each tuple in this list is request
     # and second one is reponse to first element request 
 
+    print(f'---Found {len(packets)} responses!---')
+
+    for packet in packets:
+        if packet[1].haslayer(TCP) and packet[1].getlayer(TCP).flags == 0x4:
+            print(f'Port number {packet[1].getlayer(TCP).sport} is unfiltered!')
+    print('=' * 50)
+    print()
+
+
+def syn_scan(dest, ports, delay, retry=1):
+    print('Start scanning target with SYN scan'.center(50, '='))
+
+    packets = send_tcp_packet(dest, ports, 'S', delay, retry)
+    # variable packets is a list of tuples of request and responses
+    # it only contains requests which have responses. first element of each tuple in this list is request
+    # and second one is reponse to first element request 
+
+    print(f'---Found {len(packets)} responses!---')
+
     for packet in packets:
         if packet[1].getlayer(TCP).flags == 0x12:   # SYN and ACK bit
-            print(f'Port number {packet[1].getlayer(TCP).sport} sent an STN/ACK packet!')
+            print(f'Port number {packet[1].getlayer(TCP).sport} sent an SYN/ACK packet!')
 
     print('=' * 50)
     print()
@@ -73,6 +97,9 @@ for option in options:  # expected option format: "<sth>=<sth>"
         elif option[1] == 'w':
             scan = win_scan
             print('---Window scan---')
+        elif option[1] == 'a':
+            scan = ack_scan
+            print('---ACK scan---')
         else:
             print(f'Scan mode not found: {option[1]}')
     elif option[0] == 'ports':
