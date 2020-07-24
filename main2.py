@@ -13,7 +13,7 @@ def send_tcp_packet(dest, ports, flags, delay, retry):
     # sends tcp packet with specified arguments and returns every packet that receieved an answer.
     # it returns a list of tuples. each tuple has two elements, first is the request we sent and second is its reponse
 
-    return sr(IP(dst=dest)/TCP(dport=ports, flags=flags), retry=retry, timeout=delay, verbose=0)[0]
+    return sr(IP(dst=dest)/TCP(dport=ports, flags=flags), retry=retry, timeout=delay, verbose=0)
 
 
 def connect_scan():
@@ -22,7 +22,7 @@ def connect_scan():
 def ack_scan(dest, ports, delay, retry=1):
     print('Start scanning target with ACK scan'.center(50, '='))
 
-    packets = send_tcp_packet(dest, ports, 'A', delay, retry)
+    packets = send_tcp_packet(dest, ports, 'A', delay, retry)[0]
     # variable packets is a list of tuples of request and responses
     # it only contains requests which have responses. first element of each tuple in this list is request
     # and second one is reponse to first element request 
@@ -39,7 +39,7 @@ def ack_scan(dest, ports, delay, retry=1):
 def syn_scan(dest, ports, delay, retry=1):
     print('Start scanning target with SYN scan'.center(50, '='))
 
-    packets = send_tcp_packet(dest, ports, 'S', delay, retry)
+    packets = send_tcp_packet(dest, ports, 'S', delay, retry)[0]
     # variable packets is a list of tuples of request and responses
     # it only contains requests which have responses. first element of each tuple in this list is request
     # and second one is reponse to first element request 
@@ -54,8 +54,19 @@ def syn_scan(dest, ports, delay, retry=1):
     print()
 
 
-def fin_scan():
-    pass
+def fin_scan(dest, ports, delay, retry=1):
+    print('Start scanning target with FIN scan'.center(50, '='))
+    packets = send_tcp_packet(dest, ports, 'F', delay, retry)[1]
+    # variable packet is a list of all unanswered packets.
+    # When sending a fin packet if there was no answere maybe (or maybe not) that port is open
+
+    print(f'---{len(packets)} unanswered requests!---')
+
+    for packet in packets:
+        print(f'Port number {packet.getlayer(TCP).dport} may be open!')
+    
+    print('=' * 50)
+    print()
 
 def win_scan():
     pass
