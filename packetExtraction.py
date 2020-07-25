@@ -331,51 +331,69 @@ layer_three_protocols = {tcp_prot: tcp, udp_prot: udp, icmp_prot: icmp}
 layer_four_protocols = {http_prot: http, dns_prot: dns}
 
 
-def extract(packet):
+def extract(packet, start='E'):
     # gets the packet and returns all of headers in different layers
 
+    # start specifies in which layer to start extracting
+    # it is useful when working with sockets. because socket receive functions don't have ethernet headers
+    # and in order to extract their headers we have to start from ip layer
+
     headers = dict()  # a mapping from protocol names to its headers
+    status = False  # indicates that can packet be extracted. according to start parameter
 
-    head, data = ether(packet)
-    headers['Ethernet'] = head
+    if start.upper() == 'ETH':
+        status = True
 
+    if status:
+        head, data = ether(packet)
+        headers['Ethernet'] = head
 
-    if head['Ethertype'] not in layer_two_porotocols:  # unsupported protocol
-        return
+        ethtype = head['Ethertype']
 
-    head, data = layer_two_porotocols[head['Ethertype']](data)
+        if ethtype not in layer_two_porotocols:  # unsupported protocol
+            return
+        
     
-    if data is None: # arp
-        return {
-            'Ethernet': headers['Ethernet'],
-            'ARP': head
-        }
+    if start.upper() == 'IP':
+        ethtype = ip_prot
+        data = packet
+        status = True
+
+    if status: 
+        head, data = layer_two_porotocols[ethtype](data)
     
-    headers['IP'] = head  # only supported arp and ip in this layer. it is not arp because it has been checked. so it's ip
+        if data is None: # arp
+            return {
+                'Ethernet': headers['Ethernet'],
+                'ARP': head
+            }   
+        
+        headers['IP'] = head  # only supported arp and ip in this layer. it is not arp because it has been checked. so it's ip
 
-    if head['Protocol number'] not in layer_three_protocols \
-        or head['Source IP address'].startswith('127'):
-        # first condition -> unsupported protocol
-        # second condition -> loopback
-        return
+        if head['Protocol number'] not in layer_three_protocols \
+            or head['Source IP address'].startswith('127'):
+            # first condition -> unsupported protocol
+            # second condition -> loopback
+            return
 
-    if head['Protocol number'] == tcp_prot:
-        name = 'TCP'
-    elif head['Protocol number'] == udp_prot:
-        name = 'UDP'
-    else:
-        name = 'ICMP'
+        if head['Protocol number'] == tcp_prot:
+            name = 'TCP'
+        elif head['Protocol number'] == udp_prot:
+            name = 'UDP'
+        else:
+            name = 'ICMP'
 
-    head, data = layer_three_protocols[head['Protocol number']](data)
+        head, data = layer_three_protocols[head['Protocol number']](data)
 
-    if data is None:  # icmp
-        return {
-            'Ethernet': headers['Ethernet'],
-            'IP': headers['IP'],
-            'ICMP': head
-        }
+        if data is None:  # icmp
+            return {
+                'Ethernet': headers['Ethernet'],
+                'IP': headers['IP'],
+                'ICMP': head
+            }
 
-    headers[name] = head
+        headers[name] = head
+    
     
     if dns_prot in (head['Source port number'], head['Destination port number']):  # storing the name of protocol in order to map this name to its related header in upper layer
         name = 'DNS'
