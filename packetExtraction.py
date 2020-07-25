@@ -317,3 +317,9 @@ def http(data):
         return None
 
     return {'Header': header, 'Message': message}
+
+
+# supported protocols
+layer_two_porotocols = {2048: ip, 2054: arp}
+layer_three_protocols = {6: tcp, 17: udp, 1: icmp}
+layer_four_protocols = {80: http, 53: dns}
