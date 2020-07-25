@@ -1,14 +1,51 @@
 from packets import *
 import socket
-
-
-print('*' * 50)
+import time
+from packetExtraction import *
+import sys
+from timeit import default_timer as timer
 
 def connect_scan():
     pass
 
-def syn_scan():
-    pass
+def syn_scan(dst, ports, delay, iface, sport=20):
+    if type(ports) == tuple:
+        ports = [i for i in range(min(ports[0], ports[1]), max(ports[0], ports[1]))]
+
+    print('*' * 30)
+    print('Starting SYN scan'.center(30))
+
+    dst = socket.gethostbyname(dst)
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    open_ports = list()
+
+    for port in ports:
+        status = True
+        packet_to_send = TCPpacket(dst, port, iface, sport, 'S').make()
+        s.sendto(packet_to_send, (dst, 0))
+        start = time.time()
+        end = time.time()
+        while end - start < delay + 0.5:  # 0.5 is added because of additional calculations
+            packet, addr = s.recvfrom(1024)
+            headers = extract(packet, 'IP')
+            end = time.time()
+            if headers is None:
+                continue
+            if addr[0] == dst and headers['TCP']['SYN'] == 1 and headers['TCP']['ACK'] == 1:
+                open_ports.append(port)
+                status = False
+                print('!', end='')
+                break
+
+            print(f'end is {end}, start is {start}')
+        if status:
+            print('.', end='')
+        print()
+
+    print('Port numbers', *open_ports, 'sent back SYN/ACK tcp packets!\n\n')
+    print('*' * 30)
+                
 
 def ack_scan():
     pass
@@ -23,6 +60,8 @@ def win_scan():
 options = sys.argv[1:]
 
 # dst is a string, scan is a function, ports is a tuple for range of ports and a list for single ports, delay is an int
+# iface is a string
+
 # default values
 dst = '127.0.0.1'
 scan = connect_scan
@@ -90,7 +129,7 @@ if iface is None:
     raise AttributeError('Interface name must be specified')
 
 
-
+scan(dst, ports, delay, iface)
 
 
 
