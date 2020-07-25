@@ -18,54 +18,37 @@ conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 while True:
     raw_data, addr = conn.recvfrom(65535)
 
+    headers = extract(raw_data)
+
+    if headers == None:  # unsupported protocol
+        continue
+
     string = ''
+    string += make_protocol_str(headers['Ethernet'], 'Ethernet')
 
-    ether_headers, data = ether(raw_data)  
-
-    if ether_headers['Ethertype'] not in layer_two_porotocols:
+    if 'ARP' in headers:
+        string += make_protocol_str(headers['ARP'], 'ARP')
+        print(string + ('-' * 30) + '\n')
         continue
-
-
-    string += make_protocol_str(ether_headers, 'Ethernet')
-
-    layer_two_headers, data = layer_two_porotocols[ether_headers['Ethertype']](data)
     
-    string += make_protocol_str(layer_two_headers, layer_two_porotocols[ether_headers['Ethertype']].__name__.upper())
+    string += make_protocol_str(headers['IP'], 'IP')
 
-    if data is None: # arp
-        print('-' * 50)
-        print(string)
-        print('-' * 50)
+    if 'ICMP' in headers:
+        string += make_protocol_str(headers['ICMP'], 'ICMP')
+        print(string + ('-' * 30) + '\n')
         continue
 
-    if layer_two_headers['Protocol number'] not in layer_three_protocols \
-        or layer_two_headers['Source IP address'].startswith('127'):
-        # first condition -> unsupported protocol
-        # second condition -> loopback
-        continue
+    elif 'TCP' in headers:
+        string += make_protocol_str(headers['TCP'], 'TCP')
 
-
-    layer_three_headers, data = layer_three_protocols[layer_two_headers['Protocol number']](data)
-
-    string += make_protocol_str(layer_three_headers, layer_three_protocols[layer_two_headers['Protocol number']].__name__.upper())
-
-    if data is None:  # icmp
-        print('-' * 50, string, '-' * 50, sep='\n')
-        continue
-
-    if layer_three_headers['Source port number'] in layer_four_protocols:
-        layer_four_headers = layer_four_protocols[layer_three_headers['Source port number']](data)
-        string += make_protocol_str(layer_four_headers, layer_four_protocols[layer_three_headers['Source port number']].__name__.upper())
-
-    elif layer_three_headers['Destination port number'] in layer_four_protocols:
-        layer_four_headers = layer_four_protocols[layer_three_headers['Destination port number']](data)
-        string += make_protocol_str(layer_four_headers, layer_four_protocols[layer_three_headers['Destination port number']].__name__.upper())
-    
     else:
-        continue
+        string += make_protocol_str(headers['UDP'], 'UDP')
 
-
-    print('-' * 50, string, '-' * 50, sep='\n')
-
-
+    if 'HTTP' in headers:
+        string += make_protocol_str(headers['HTTP'], 'HTTP')
+    else:
+        string += make_protocol_str(headers['DNS'], 'DNS')
+    
+    print(string)
+    print('-' * 30, '\n')
 
