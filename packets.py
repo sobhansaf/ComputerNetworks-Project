@@ -1,6 +1,7 @@
 from struct import *
 import re
 import socket
+import netifaces
 
 
 
@@ -11,17 +12,22 @@ class TCPpacket:
         params:
             dst(str): destination address. e.g -> "1.2.3.4" or "www.foo.com"
             dport(int): destination port
-            src(str): source ip address
+            iface(str): nome of the network intereface. e.g -> "eth0"
             sport(int): source port of packet. e.g -> 20
             flags(str): flags of tcp header. e.g -> SAP (SYN, ACK, PSH) 
     """
 
-    def __init__(self, dst: str, dport: int, src: str, sport: int, flags: str):
-        self.dst = dst
-        self.src = src
+    def __init__(self, dst: str, dport: int, iface: str, sport: int, flags: str):
+        self.dst = socket.gethostbyname(dst)  # translate name to ip. causes an error if name is not availabe
+
+        # setting src ip address. causes an error if interface name is not valid. it's assumed that computer has
+        # only one network card
+        self.src = netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr']
         self.sport = sport
         self.dport = dport
         self.flags_str = flags
+        
+        # calculates the value of flags in tcp header. e.g -> 'S': 2, 'A':16, 'SA': 18
         self._calculate_flags()
 
     @staticmethod
