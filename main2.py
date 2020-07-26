@@ -37,7 +37,6 @@ def syn_scan(dst, ports, delay, iface, sport=20):
         status = True
         packet_to_send = TCPpacket(dst, port, iface, sport, 'S').make()
         s.sendto(packet_to_send, (dst, 0))
-        s.settimeout(delay)
 
         # in order to keep track of how much to wait for an appropriate answer, start and end is used 
         # between sending a packet and recieving an answer. if time interval got bigger than delay parameter
@@ -46,6 +45,7 @@ def syn_scan(dst, ports, delay, iface, sport=20):
         end = time.time()
 
         while end - start < delay + 0.1:  # 0.1 is added because of additional calculations (of course 0.1 is also too much for calculations!)
+            s.settimeout(delay - (end - start))
             try:
                 packet, addr = s.recvfrom(1024)
             except socket.timeout:
