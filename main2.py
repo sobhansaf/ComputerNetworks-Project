@@ -91,12 +91,28 @@ def syn_scan(dst, ports, delay, iface, sport=20):
 
     print()
 
-    print('Port numbers', *open_ports, 'sent back SYN/ACK tcp packets!\n\n')
+    print('Port numbers {', *open_ports, '} sent back SYN/ACK tcp packets!\n\n')
     print('*' * 30)
                 
 
 def ack_scan(dst, ports, delay, iface, sport=20):
-    pass
+    print('*' * 30)
+    print('Starting SYN scan'.center(30))
+
+    answers = send_tcp_packets(dst, ports, delay, iface, 'A')
+
+    unfiltered_ports = list()
+
+    for answer in answers:
+        if answer[1][0] != dst:
+            continue
+        header = answer[0]['TCP']
+        if header['RST']:
+            unfiltered_ports.append(header['Source port number'])
+    
+    print()
+    print('Port numbers {', *unfiltered_ports, '} may be unfiltered!\n\n')
+    print('*' * 30)
 
 def fin_scan():
     pass
