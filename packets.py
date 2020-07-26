@@ -45,7 +45,6 @@ class TCPpacket:
             if res >= 2 ** 16:  # carry bit
                 res = res & 0xffff
                 res += 1
-        print(pack('!H', 0xffff - res))
         return 0xffff - res
 
     def _calculate_flags(self):

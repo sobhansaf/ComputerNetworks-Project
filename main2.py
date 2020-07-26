@@ -5,6 +5,19 @@ from packetExtraction import *
 import sys
 from timeit import default_timer as timer
 
+def extract_packet_from_IP(packet):
+    # gets a TCP packet that starts from IP layer (Ether headers seperated) and returns headers of tcp and ip layer
+    headers = dict()
+    head, data = ip(packet)
+    if head['Protocol number'] != tcp_prot:  # it's not a tcp packet
+        return
+    headers['IP'] = head
+    head, data = tcp(data)
+    headers['TCP'] = head
+
+    return headers
+
+
 def connect_scan():
     pass
 
@@ -24,24 +37,33 @@ def syn_scan(dst, ports, delay, iface, sport=20):
         status = True
         packet_to_send = TCPpacket(dst, port, iface, sport, 'S').make()
         s.sendto(packet_to_send, (dst, 0))
-        start = time.time()
+        s.settimeout(delay)
+
+        # in order to keep track of how much to wait for an appropriate answer, start and end is used 
+        # between sending a packet and recieving an answer. if time interval got bigger than delay parameter
+        # then stops waiting for the answer and sends the next packet
+        start = time.time() 
         end = time.time()
-        while end - start < delay + 0.5:  # 0.5 is added because of additional calculations
-            packet, addr = s.recvfrom(1024)
-            headers = extract(packet, 'IP')
+
+        while end - start < delay + 0.1:  # 0.1 is added because of additional calculations (of course 0.1 is also too much for calculations!)
+            try:
+                packet, addr = s.recvfrom(1024)
+            except socket.timeout:
+                break
+            headers = extract_packet_from_IP(packet)
             end = time.time()
             if headers is None:
                 continue
             if addr[0] == dst and headers['TCP']['SYN'] == 1 and headers['TCP']['ACK'] == 1:
                 open_ports.append(port)
                 status = False
-                print('!', end='')
+                print('!', end='', flush=True)
                 break
 
-            print(f'end is {end}, start is {start}')
         if status:
-            print('.', end='')
-        print()
+            print('.', end='', flush=True)
+
+    print('\n')
 
     print('Port numbers', *open_ports, 'sent back SYN/ACK tcp packets!\n\n')
     print('*' * 30)
