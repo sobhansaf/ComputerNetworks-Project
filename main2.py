@@ -97,7 +97,7 @@ def syn_scan(dst, ports, delay, iface, sport=20):
 
 def ack_scan(dst, ports, delay, iface, sport=20):
     print('*' * 30)
-    print('Starting SYN scan'.center(30))
+    print('Starting ACK scan'.center(30))
 
     answers = send_tcp_packets(dst, ports, delay, iface, 'A')
 
@@ -131,13 +131,32 @@ def fin_scan(dst, ports, delay, iface, sport=20):
         header = answer[0]['TCP']
         if header['RST']:  # closed ports sometimes send RST packets in answer of FIN packets
             open_ports.discard(header['Source port number'])
-            
+
     print()
     print('Port numbers {', *open_ports, '} may be opened or maybe filtered!\n\n')
     print('*' * 30)
 
-def win_scan():
-    pass
+def win_scan(dst, ports, delay, iface, sport=20):
+    # it's like ack scan. in some cases when a port is open and unfiltered the rst packet has a psitive window size
+    # in unfiltered closed ports sometimes in rst packet window size is zero
+    print('*' * 30)
+    print('Starting FIN scan'.center(30))
+
+    answers = send_tcp_packets(dst, ports, delay, iface, 'A')
+
+    open_ports = list()
+
+    for answer in answers:
+        if answer[1][0] != dst:
+            continue
+        header = answer[0]['TCP']
+        if header['RST'] and header['Window size']:  # window size is not zero and rst flag is on
+            open_ports.append(header['Source port number'])
+    
+    print()
+    print('Port numbers {', *open_ports, '} may be open!\n\n')
+    print('*' * 30)
+
 
 
 options = sys.argv[1:]
