@@ -67,8 +67,29 @@ def send_tcp_packets(dst, ports, delay, iface, flags, sport=20):
     return packets_recieved
 
 
-def connect_scan():
-    pass
+def connect_scan(dst, ports, delay, iface, sport=20):
+    print('*' * 30)
+    print('Starting Connect scan'.center(30))
+    ports = calculate_ports(ports)
+    open_ports = list()
+
+    for port in ports:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(delay)
+        try:
+            s.connect((dst, port))
+        except:
+            print('.', end='', flush=True)
+            continue
+        print('.', end='', flush=True)
+        open_ports.append(port)
+        s.close()
+    
+    print()
+
+    print('Connection with ports {', *open_ports, '} could establish!\n\n')
+    print('*' * 30)
+
 
 def syn_scan(dst, ports, delay, iface, sport=20):
 
