@@ -17,13 +17,20 @@ def extract_packet_from_IP(packet):
 
     return headers
 
+def calculate_ports(ports):
+    # ports can be a tuple or a list
+    # if ports parameter is a tuple it is a range of ports. e.g -> (70, 90) => ports 70, 71, ..., 90
+    # otherwise it consits of single ports. e.g -> [70, 90] => ports 70, 90
+    if type(ports) == tuple:
+        ports = [i for i in range(min(ports[0], ports[1]), max(ports[0], ports[1]))]
+    return ports
+
 
 def connect_scan():
     pass
 
 def syn_scan(dst, ports, delay, iface, sport=20):
-    if type(ports) == tuple:
-        ports = [i for i in range(min(ports[0], ports[1]), max(ports[0], ports[1]))]
+    ports = calculate_ports(ports)
 
     print('*' * 30)
     print('Starting SYN scan'.center(30))
