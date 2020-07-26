@@ -25,24 +25,22 @@ def calculate_ports(ports):
         ports = [i for i in range(min(ports[0], ports[1]), max(ports[0], ports[1]))]
     return ports
 
+def send_tcp_packets(dst, ports, delay, iface, flags, sport=20):
+    # dst is the dst address, a string, can be a name like google.com or an ip
+    # ports can be a tuple for a range or a list for single ports
+    # delay is an int. the time to wait for an appropriate for a response
+    # flags is a string of tcp flags. like "S" for SYN or "FA" for ACK/FIN
+    # sport is an int, source port
 
-def connect_scan():
-    pass
-
-def syn_scan(dst, ports, delay, iface, sport=20):
     ports = calculate_ports(ports)
-
-    print('*' * 30)
-    print('Starting SYN scan'.center(30))
-
     dst = socket.gethostbyname(dst)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
-    open_ports = list()
+    packets_recieved = list()
 
     for port in ports:
         status = True
-        packet_to_send = TCPpacket(dst, port, iface, sport, 'S').make()
+        packet_to_send = TCPpacket(dst, port, iface, sport, flags).make()
         s.sendto(packet_to_send, (dst, 0))
 
         # in order to keep track of how much to wait for an appropriate answer, start and end is used 
@@ -61,22 +59,43 @@ def syn_scan(dst, ports, delay, iface, sport=20):
             end = time.time()
             if headers is None:
                 continue
-            if addr[0] == dst and headers['TCP']['SYN'] == 1 and headers['TCP']['ACK'] == 1:
-                open_ports.append(port)
-                status = False
-                print('!', end='', flush=True)
-                break
+            packets_recieved.append((headers, addr))
 
-        if status:
-            print('.', end='', flush=True)
+        print('.', end='', flush=True)
 
     print('\n')
+    return packets_recieved
+
+
+def connect_scan():
+    pass
+
+def syn_scan(dst, ports, delay, iface, sport=20):
+
+    print('*' * 30)
+    print('Starting SYN scan'.center(30))
+
+    dst = socket.gethostbyname(dst)
+
+    answers = send_tcp_packets(dst, ports, delay, iface, 'S')
+    # returns a list of tuples. each contains header of rececieved packet and source address of packet.
+    
+    open_ports = list()
+
+    for answer in answers:
+        if answer[1][0] != dst:
+            continue
+        header = answer[0]['TCP']
+        if header['SYN'] and header['ACK']:
+            open_ports.append(header['Source port number'])
+
+    print()
 
     print('Port numbers', *open_ports, 'sent back SYN/ACK tcp packets!\n\n')
     print('*' * 30)
                 
 
-def ack_scan():
+def ack_scan(dst, ports, delay, iface, sport=20):
     pass
 
 def fin_scan():
