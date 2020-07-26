@@ -331,7 +331,7 @@ layer_three_protocols = {tcp_prot: tcp, udp_prot: udp, icmp_prot: icmp}
 layer_four_protocols = {http_prot: http, dns_prot: dns}
 
 
-def extract(packet, start='E'):
+def extract(packet, start='ETH'):
     # gets the packet and returns all of headers in different layers
 
     # start specifies in which layer to start extracting
