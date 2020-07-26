@@ -114,8 +114,27 @@ def ack_scan(dst, ports, delay, iface, sport=20):
     print('Port numbers {', *unfiltered_ports, '} may be unfiltered!\n\n')
     print('*' * 30)
 
-def fin_scan():
-    pass
+def fin_scan(dst, ports, delay, iface, sport=20):
+    print('*' * 30)
+    print('Starting FIN scan'.center(30))
+
+    # if an answer with rst flag has been recieved that port may be closed!
+    # if there was no answer, that port may be either open or filtered
+
+    answers = send_tcp_packets(dst, ports, delay, iface, 'F')
+
+    open_ports = set(calculate_ports(ports))  # becaus we want to delete some closed ports, it is easier to use set instead of list
+
+    for answer in answers:
+        if answer[1][0] != dst:
+            continue
+        header = answer[0]['TCP']
+        if header['RST']:  # closed ports sometimes send RST packets in answer of FIN packets
+            open_ports.discard(header['Source port number'])
+            
+    print()
+    print('Port numbers {', *open_ports, '} may be opened or maybe filtered!\n\n')
+    print('*' * 30)
 
 def win_scan():
     pass
