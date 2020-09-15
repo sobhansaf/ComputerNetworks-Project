@@ -37,4 +37,21 @@ class Arp:
         self.smac = smac
         self.dmac = dmac
 
+    @staticmethod
+    def _make_mac_from_str(mac):
+        # gets the mac address in form of string (e.g 08:a4:...) and returns a list of 6 integers representing each byte (e.g [8, 164,...])
+        assert(re.match(r'^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$', mac))
+        
+        # mapping letters to their corresponding numbers. e.g : 'a': 10 , 'f': 15
+        d = {str(i): i for i in range(10)}
+        d.update({chr(ord('a') + i): 10 + i for i in range(7)})
+
+        mac = mac.split(':')
+        res = list()
+        for item in mac:
+            # it has been checked in the assertion that each item has exatcly 2 letters and each letter is either number or a-f or A-F
+            res.append(d[item[0].lower()] * 16 + d[item[1].lower()])
+        return res
+
+
 
