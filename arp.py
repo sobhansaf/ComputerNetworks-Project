@@ -1,5 +1,6 @@
 import struct
 import re
+import socket
 
 class Arp:
     """
@@ -17,7 +18,7 @@ class Arp:
     __hw_size = 6  # mac size (arp header)
     __protocol_size = 4  # ip size (arp header)
 
-    def __init__(self, sip, dip, smac, dmac='00:00:00:00:00:00', opcode=1):
+    def __init__(self, sip, dip, smac, dmac='ff:ff:ff:ff:ff:ff', opcode=1):
         if type(sip) != str or type(dip) != str or type(smac) != str or type(dmac) != str:  # checking all of the inputs are string
             raise TypeError('smac, dmac, sip and dip should be strings.')
         if not re.match(r'^(\d{1,3}\.){3}\d{1,3}$', sip) or not re.match(r'^(\d{1,3}\.){3}\d{1,3}$', dip):  # checking the format of IP address
@@ -65,7 +66,7 @@ class Arp:
         smac = Arp._make_mac_from_str(':'.join(self.smac))
         dmac = Arp._make_mac_from_str(':'.join(self.dmac))
 
-        ether_header = struct.pack('!6B6BH', *smac, *dmac, Arp.__ether_type)
+        ether_header = struct.pack('!6B6BH', *dmac, *smac, Arp.__ether_type)
         arp_header = struct.pack('!2H2BH6B4B6B4B', Arp.__hw_type, Arp.__protocol_type, Arp.__hw_size, Arp.__protocol_size,
                                 self.opcode, *smac, *tuple(map(int, self.sip)), *dmac, *tuple(map(int, self.dip)))
         self.packet = ether_header + arp_header
