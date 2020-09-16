@@ -3,6 +3,8 @@ import optparse
 import re
 from checkValues import *
 import socket
+import time
+import packetExtraction
 
 
 def get_inputs():
@@ -14,6 +16,7 @@ def get_inputs():
     parser.add_option('-i', '--iface', help='Interface name (required)', dest='iface')
     parser.add_option('-r', '--range', help='Range of IP to scan(e.g: 192.168.1.1/24)', dest='range')
     parser.add_option('-n', '--number', help='number of interface (default=1)', dest='n', default='1')
+    parser.add_option('-d', '--delay', help='time to wait for a response', dest='delay', default='1')
     
     options, args = parser.parse_args()
 
@@ -53,7 +56,13 @@ def get_inputs():
     else:
         sip = options.sip
 
-    return iface, mac, rip, mask, sip
+    try:  # delay should be numeric
+        delay = float(options.delay)
+    except:
+        print('[-] Delay should be numeric.')
+        exit(1)
+
+    return iface, mac, rip, int(mask), sip, delay
 
 def make_ip_integer(ip):
     # gets an ip like "192.168.1.1". it is 4 bytes or 32bit. returns an integer as its corresponding unsigned integer
@@ -98,23 +107,50 @@ def get_range(ip, mask):
 
     return start, end
 
-def send_raw_packet(packet, iface):
-    s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
-    s.bind((iface, 0))
-    s.sendall(packet)
+def send_raw_packet(sock, packet, iface):
+    sock.sendall(packet)
+    
+
+def recieve_arp(sock, delay, ip, opcode=2):
+    # recives packets in the interval of given delay and if there was an arp packet with destination of ip and given opcode
+    start = time.time()
+    end = time.time()
+    while end - start < delay:
+        try:
+            sock.settimeout(delay - (end - start))
+            response, addr = s.recvfrom(1024)
+        except:  # if delat < end - start or socket time out
+            break
+        headers = packetExtraction.extract(response)
+        if headers is None or 'ARP' not in headers:
+            end = time.time()
+        elif headers['ARP']['Opcode'] == opcode and headers['ARP']['Destination protocol address'] == ip:
+            return headers['ARP']['Source protocol address'], headers['ARP']['Source hardware address']
+
+
 
 if __name__ == '__main__':
-    iface, mac, rip, mask, sip = get_inputs()
+    iface, mac, rip, mask, sip, delay = get_inputs()
     start, end = get_range(rip, int(mask))
 
     # creating packet for first ip in the given range
     # later we use the same object for other ips with changing its dip then we call its make method
     arp = Arp(sip, make_integer_ip(start), mac)
+    s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
+    s.bind((iface, 0))
+
+    res = list()
 
     for ip in range(start, end + 1):
         arp.update_values({'dip': make_integer_ip(ip)})
         packet = arp.make()
-        send_raw_packet(packet, iface)
+        send_raw_packet(s, packet, iface)
+        response = recieve_arp(s, delay, sip)
+        if response:
+            res.append(response)
+
+    print(*res, sep='\n')
+
 
 
 
