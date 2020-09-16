@@ -1,15 +1,8 @@
 from arp import Arp
 import optparse
 import re
-
-def check_ip(ip):
-    assert(type(ip) == str and re.match(r'(\d{1,3}\.){3}\d{1,3}', ip))
-
-    numbers = ip.split('.')
-    for num in numbers:
-        if int(num) > 255:
-            return False
-    return True
+from checkValues import *
+import socket
 
 
 def get_inputs():
@@ -17,49 +10,50 @@ def get_inputs():
 
     parser = optparse.OptionParser()
     parser.add_option('-s', '--source', help='Source IP address', dest='sip')
-    parser.add_option('-m', '--mac', help='Source MAC address (if one of source mac or source ip is not specified interface name is required)', dest='mac')
-    parser.add_option('-i', '--iface', help='''Interface name (if one of source mac or source ip is not specified interface name is required)', dest='iface''')
+    parser.add_option('-m', '--mac', help='Source MAC address', dest='mac')
+    parser.add_option('-i', '--iface', help='Interface name (required)', dest='iface')
     parser.add_option('-r', '--range', help='Range of IP to scan(e.g: 192.168.1.1/24)', dest='range')
+    parser.add_option('-n', '--number', help='number of interface (default=1)', dest='n', default='1')
     
     options, args = parser.parse_args()
-    if options.range is None:  # checking the FORMAT of ip range. -> CORRECT: 192.168.0.0/24 , WRONG: 192.168.0/24, 
+
+    if options.iface is None:
+        print('[-] Interface name is required.')
+        exit(1)
+    elif not check_iface(options.iface):  # checks if there is such iface name
+        print('[-] Wrong interface name.')
+        exit(1)
+    else:
+        iface = options.iface
+
+    if options.range is None:
         print('[-] Range of IPs to scan should be specified!')
         exit(1)
-    elif not re.match(r'^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$', options.range):
+    elif not check_ip_range(options.range):   # checking the FORMAT of ip range. -> CORRECT: 192.168.0.0/24 , WRONG: 192.168.0/24, 
         print('[-] Wrong range of IPs.')
         exit(1)
     else:
         mask = options.range[options.range.find('/') + 1:]
         rip = options.range[:options.range.find('/')]
 
-    if not check_ip(rip) or int(mask) > 32 or int(mask) < 0:
-        print('[-] Wrong range of IPs.')
-        exit(1)
-
-    if options.mac is None and options.iface is None:
-        print('[-] At lease one of mac address or interface name should be specified')
-        exit(1)
-    elif options.mac is None:
-        mac = netifaces.ifaddresses(options.iface)[netifaces.AF_LINK][0]['addr']
-    else:
-        if re.match(r'^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$', options.mac):
+    if options.mac is None:
+        mac = netifaces.ifaddresses(iface)[netifaces.AF_LINK][int(options.n) - 1]['addr']  # number of nic is given from input. default is 1
+    else:  # source MAC address is specified
+        if check_mac(options.mac):  
             mac = options.mac
         else:
             print('[-] Wrong MAC address')
             exit(1)
 
-    if options.sip is None and options.iface is None:
-        print('[-] At lease one of source IP address or interface name should be specified')
-        exit(1)
-    elif options.sip is None:
-        sip = netifaces.ifaddresses(options.iface)[netifaces.AF_INET][0]['addr']
+    if options.sip is None:
+        sip = netifaces.ifaddresses(options.iface)[netifaces.AF_INET][int(options.n) - 1]['addr']  # number of nic is given from input. default is 1
     elif not check_ip(options.sip):
         print('[-] Wrong source of IPs.')
         exit(1)
     else:
         sip = options.sip
 
-    return mac, rip, mask, sip
+    return iface, mac, rip, mask, sip
 
 def make_ip_integer(ip):
     # gets an ip like "192.168.1.1". it is 4 bytes or 32bit. returns an integer as its corresponding unsigned integer
@@ -103,6 +97,26 @@ def get_range(ip, mask):
     end = start + 2 ** (32 - mask) - 1
 
     return start, end
+
+def send_raw_packet(packet, iface):
+    s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
+    s.bind((iface, 0))
+    s.sendall(packet)
+
+if __name__ == '__main__':
+    iface, mac, rip, mask, sip = get_inputs()
+    start, end = get_range(rip, int(mask))
+
+    # creating packet for first ip in the given range
+    # later we use the same object for other ips with changing its dip then we call its make method
+    arp = Arp(sip, make_integer_ip(start), mac)
+
+    for ip in range(start, end + 1):
+        arp.update_values({'dip': make_integer_ip(ip)})
+        packet = arp.make()
+        send_raw_packet(packet, iface)
+
+
 
 
 
