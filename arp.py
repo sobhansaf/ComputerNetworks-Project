@@ -1,6 +1,6 @@
 import struct
 import re
-import socket
+from checkValues import *
 
 class Arp:
     """
@@ -19,25 +19,12 @@ class Arp:
     __protocol_size = 4  # ip size (arp header)
 
     def __init__(self, sip, dip, smac, dmac='ff:ff:ff:ff:ff:ff', opcode=1):
-        if type(sip) != str or type(dip) != str or type(smac) != str or type(dmac) != str:  # checking all of the inputs are string
-            raise TypeError('smac, dmac, sip and dip should be strings.')
-        if not re.match(r'^(\d{1,3}\.){3}\d{1,3}$', sip) or not re.match(r'^(\d{1,3}\.){3}\d{1,3}$', dip):  # checking the format of IP address
+        if not check_ip(sip) or not check_ip(dip):  # checking the format of IP address
             raise ValueError('Unsupported IP format!')
-        if not re.match(r'^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$', smac) or not re.match(r'^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$', dmac):  # checking the format of mac address.
+        if not check_mac(smac) or not check_mac(dmac):  # checking the format of mac address.
             raise ValueError('Unsupported MAC address format!')
         if type(opcode) != int:
             raise ValueError('Opcode should be an integer!')
-        
-        sip = tuple(sip.split('.'))
-        dip = tuple(dip.split('.'))
-        smac = tuple(smac.split(':'))
-        dmac = tuple(dmac.split(':'))
-
-        # checking the values of ip. they shouldn't be more than 255 or less than 0
-        for items in [sip, dip]:
-            for item in items:
-                if int(item) > 255 or int(item) < 0:
-                    raise ValueError('Wrong IP address!')
 
         self.sip = sip
         self.dip = dip
@@ -48,7 +35,8 @@ class Arp:
     @staticmethod
     def _make_mac_from_str(mac):
         # gets the mac address in form of string (e.g 08:a4:...) and returns a list of 6 integers representing each byte (e.g [8, 164,...])
-        assert(re.match(r'^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$', mac))
+        if not check_mac(mac):
+            raise ValueError('Wrong MAC address')
         
         # mapping letters to their corresponding numbers. e.g : 'a': 10 , 'f': 15
         d = {str(i): i for i in range(10)}
@@ -63,12 +51,24 @@ class Arp:
 
     def make(self):
         # creates a packet of bytes format
-        smac = Arp._make_mac_from_str(':'.join(self.smac))
-        dmac = Arp._make_mac_from_str(':'.join(self.dmac))
+        smac = Arp._make_mac_from_str(self.smac)
+        dmac = Arp._make_mac_from_str(self.dmac)
 
         ether_header = struct.pack('!6B6BH', *dmac, *smac, Arp.__ether_type)
         arp_header = struct.pack('!2H2BH6B4B6B4B', Arp.__hw_type, Arp.__protocol_type, Arp.__hw_size, Arp.__protocol_size,
-                                self.opcode, *smac, *tuple(map(int, self.sip)), *dmac, *tuple(map(int, self.dip)))
+                                self.opcode, *smac, *tuple(map(int, self.sip.split('.'))), *dmac, *tuple(map(int, self.dip.split('.'))))
         self.packet = ether_header + arp_header
         return self.packet
 
+    def update_values(self, d):
+        # gets a dictionary. updates object values according to that dictionary. e.d -> {"sip": "192.168.1.150"}
+        for item in d:
+            if not item in self.__dict__:
+                raise ValueError('Item not in object')
+            if 'ip' in item and check_ip(d[item]):
+                self.__dict__[item] = d[item]
+            elif 'mac' in item and check_mac(d[item]):
+                self.__dict__[item] = d[item]
+            elif item == 'opcode':
+                if type(d[item]) == int and d[item] < 256 * 256:
+                    self.__dict__[item] = d[item]
